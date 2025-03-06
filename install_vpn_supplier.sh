@@ -53,6 +53,61 @@ COUNTRIES = [
     "Argentina", "Poland", "Ukraine"
 ]
 
+# Проверка и обновление структуры таблицы
+def update_table_structure():
+    conn = psycopg2.connect(**DB_PARAMS)
+    cursor = conn.cursor()
+    
+    # Создание таблицы, если она не существует
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS suppliers (
+            id SERIAL PRIMARY KEY,
+            supplier_name VARCHAR(255) NOT NULL,
+            ip_address VARCHAR(15) NOT NULL,
+            country VARCHAR(100) NOT NULL,
+            crypto_wallet VARCHAR(255),
+            exchange VARCHAR(100),
+            payout_frequency VARCHAR(50),
+            traffic_gb REAL DEFAULT 0,
+            amount_due REAL DEFAULT 0,
+            registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    
+    # Проверка и добавление колонки payment_method
+    cursor.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 
+                FROM information_schema.columns 
+                WHERE table_name = 'suppliers' 
+                AND column_name = 'payment_method'
+            ) THEN
+                ALTER TABLE suppliers ADD COLUMN payment_method VARCHAR(50);
+            END IF;
+        END $$;
+    """)
+    
+    # Проверка и добавление колонки card_details
+    cursor.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 
+                FROM information_schema.columns 
+                WHERE table_name = 'suppliers' 
+                AND column_name = 'card_details'
+            ) THEN
+                ALTER TABLE suppliers ADD COLUMN card_details VARCHAR(255);
+            END IF;
+        END $$;
+    """)
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+
 # Регистрация поставщика
 def register_supplier():
     supplier_name = input("Введите ваше наименование как поставщика: ").encode().decode('utf-8', errors='replace')
@@ -198,6 +253,9 @@ def main_menu(supplier_name, supplier_id, ip, crypto_wallet, exchange, payment_m
             print("Неверный выбор, попробуйте снова.")
 
 if __name__ == "__main__":
+    # Обновляем структуру таблицы перед началом работы
+    update_table_structure()
+    
     if not os.path.exists("supplier_registered"):
         supplier_name, ip, supplier_id, payout_frequency, crypto_wallet, exchange, payment_method, card_details = register_supplier()
         with open("supplier_registered", "w") as f:
