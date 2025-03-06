@@ -26,7 +26,7 @@ sudo systemctl restart squid
 sudo systemctl enable squid
 
 # Создаем Python-скрипт для управления
-cat <<EOL > supplier_manager.py
+cat <<'EOL' > supplier_manager.py
 import os
 import time
 import psycopg2
@@ -55,58 +55,65 @@ COUNTRIES = [
 
 # Проверка и обновление структуры таблицы
 def update_table_structure():
-    conn = psycopg2.connect(**DB_PARAMS)
-    cursor = conn.cursor()
-    
-    # Создание таблицы, если она не существует
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS suppliers (
-            id SERIAL PRIMARY KEY,
-            supplier_name VARCHAR(255) NOT NULL,
-            ip_address VARCHAR(15) NOT NULL,
-            country VARCHAR(100) NOT NULL,
-            crypto_wallet VARCHAR(255),
-            exchange VARCHAR(100),
-            payout_frequency VARCHAR(50),
-            traffic_gb REAL DEFAULT 0,
-            amount_due REAL DEFAULT 0,
-            registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-    
-    # Проверка и добавление колонки payment_method
-    cursor.execute("""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 
-                FROM information_schema.columns 
-                WHERE table_name = 'suppliers' 
-                AND column_name = 'payment_method'
-            ) THEN
-                ALTER TABLE suppliers ADD COLUMN payment_method VARCHAR(50);
-            END IF;
-        END $$;
-    """)
-    
-    # Проверка и добавление колонки card_details
-    cursor.execute("""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 
-                FROM information_schema.columns 
-                WHERE table_name = 'suppliers' 
-                AND column_name = 'card_details'
-            ) THEN
-                ALTER TABLE suppliers ADD COLUMN card_details VARCHAR(255);
-            END IF;
-        END $$;
-    """)
-    
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        conn = psycopg2.connect(**DB_PARAMS)
+        cursor = conn.cursor()
+        
+        # Создание таблицы, если она не существует
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS suppliers (
+                id SERIAL PRIMARY KEY,
+                supplier_name VARCHAR(255) NOT NULL,
+                ip_address VARCHAR(15) NOT NULL,
+                country VARCHAR(100) NOT NULL,
+                crypto_wallet VARCHAR(255),
+                exchange VARCHAR(100),
+                payout_frequency VARCHAR(50),
+                traffic_gb REAL DEFAULT 0,
+                amount_due REAL DEFAULT 0,
+                registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        
+        # Проверка и добавление колонки payment_method
+        cursor.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'suppliers' 
+                    AND column_name = 'payment_method'
+                ) THEN
+                    ALTER TABLE suppliers ADD COLUMN payment_method VARCHAR(50);
+                END IF;
+            END $$;
+        """)
+        
+        # Проверка и добавление колонки card_details
+        cursor.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'suppliers' 
+                    AND column_name = 'card_details'
+                ) THEN
+                    ALTER TABLE suppliers ADD COLUMN card_details VARCHAR(255);
+                END IF;
+            END $$;
+        """)
+        
+        conn.commit()
+        print("Структура таблицы успешно обновлена.")
+    except Exception as e:
+        print(f"Ошибка при обновлении структуры таблицы: {e}")
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
 
 # Регистрация поставщика
 def register_supplier():
