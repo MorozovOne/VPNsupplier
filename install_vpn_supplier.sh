@@ -12,13 +12,45 @@ sudo update-locale LC_ALL=ru_RU.UTF-8
 
 pip3 install psycopg2-binary requests
 
-# Установка Squid без аутентификации
-echo "Настройка Squid..."
+# Настройка Squid с защитой от DDoS и черным списком Spamhaus
+echo "Настройка Squid с защитой от DDoS и черным списком Spamhaus..."
 sudo cp /etc/squid/squid.conf /etc/squid/squid.conf.bak  # Бэкап конфига
+
+# Создание файла для черного списка IP
+echo "Загрузка черного списка от Spamhaus..."
+sudo mkdir -p /etc/squid/blacklists
+wget -q -O - "https://www.spamhaus.org/drop/drop.txt" | grep -v '^;' | awk '{print $1}' | sudo tee /etc/squid/blacklists/spamhaus_drop.txt > /dev/null
+wget -q -O - "https://www.spamhaus.org/drop/edrop.txt" | grep -v '^;' | awk '{print $1}' | sudo tee -a /etc/squid/blacklists/spamhaus_drop.txt > /dev/null
+
+# Пример дополнительных IP для черного списка (если Spamhaus недоступен)
+cat <<EOL | sudo tee -a /etc/squid/blacklists/spamhaus_drop.txt
+1.2.3.4
+5.6.7.8
+10.0.0.0/24
+45.32.0.0/16
+185.220.101.0/24
+EOL
+
+# Конфигурация Squid
 cat <<EOL | sudo tee /etc/squid/squid.conf
 http_port 3128
 http_access allow all
 access_log /var/log/squid/access.log
+
+# Защита от DDoS
+maximum_object_size 10 MB          # Ограничение размера объекта
+request_body_max_size 15 MB        # Ограничение размера тела запроса
+reply_body_max_size 20 MB          # Ограничение размера ответа
+cache_mem 256 MB                   # Ограничение памяти кэша
+maximum_single_addr 100            # Ограничение запросов с одного IP
+
+# Черный список Spamhaus
+acl spamhaus_drop src "/etc/squid/blacklists/spamhaus_drop.txt"
+http_access deny spamhaus_drop
+
+# Отключение лишних заголовков для безопасности
+forwarded_for off
+via off
 EOL
 
 # Перезапуск Squid
@@ -26,7 +58,7 @@ sudo systemctl restart squid
 sudo systemctl enable squid
 
 # Создаем Python-скрипт для управления
-cat <<'EOL' > supplier_manager.py
+cat <<EOL > supplier_manager.py
 import os
 import time
 import psycopg2
@@ -42,78 +74,16 @@ DB_PARAMS = {
     "port": "5432"
 }
 
-# Список стран (расширен до 30+ с учетом Скандинавии, Гонконга и других)
+# Список стран с эмодзи-флагами перед названием
 COUNTRIES = [
-    "USA", "Russia", "China", "India", "Brazil",
-    "Germany", "Japan", "United Kingdom", "France", "Italy",
-    "Canada", "South Korea", "Australia", "Spain", "Mexico",
-    "Indonesia", "Turkey", "Netherlands", "Saudi Arabia", "Switzerland",
-    "Denmark", "Norway", "Sweden", "Finland", "Iceland",  # Скандинавские страны
-    "Hong Kong", "Singapore", "United Arab Emirates", "South Africa", "Thailand",
-    "Argentina", "Poland", "Ukraine"
+    "🇺🇸USA", "🇷🇺Russia", "🇨🇳China", "🇮🇳India", "🇧🇷Brazil",
+    "🇩🇪Germany", "🇯🇵Japan", "🇬🇧United Kingdom", "🇫🇷France", "🇮🇹Italy",
+    "🇨🇦Canada", "🇰🇷South Korea", "🇦🇺Australia", "🇪🇸Spain", "🇲🇽Mexico",
+    "🇮🇩Indonesia", "🇹🇷Turkey", "🇳🇱Netherlands", "🇸🇦Saudi Arabia", "🇨🇭Switzerland",
+    "🇩🇰Denmark", "🇳🇴Norway", "🇸🇪Sweden", "🇫🇮Finland", "🇮🇸Iceland",
+    "🇭🇰Hong Kong", "🇸🇬Singapore", "🇦🇪United Arab Emirates", "🇿🇦South Africa", "🇹🇭Thailand",
+    "🇦🇷Argentina", "🇵🇱Poland", "🇺🇦Ukraine"
 ]
-
-# Проверка и обновление структуры таблицы
-def update_table_structure():
-    try:
-        conn = psycopg2.connect(**DB_PARAMS)
-        cursor = conn.cursor()
-        
-        # Создание таблицы, если она не существует
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS suppliers (
-                id SERIAL PRIMARY KEY,
-                supplier_name VARCHAR(255) NOT NULL,
-                ip_address VARCHAR(15) NOT NULL,
-                country VARCHAR(100) NOT NULL,
-                crypto_wallet VARCHAR(255),
-                exchange VARCHAR(100),
-                payout_frequency VARCHAR(50),
-                traffic_gb REAL DEFAULT 0,
-                amount_due REAL DEFAULT 0,
-                registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        
-        # Проверка и добавление колонки payment_method
-        cursor.execute("""
-            DO $$
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 
-                    FROM information_schema.columns 
-                    WHERE table_name = 'suppliers' 
-                    AND column_name = 'payment_method'
-                ) THEN
-                    ALTER TABLE suppliers ADD COLUMN payment_method VARCHAR(50);
-                END IF;
-            END $$;
-        """)
-        
-        # Проверка и добавление колонки card_details
-        cursor.execute("""
-            DO $$
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 
-                    FROM information_schema.columns 
-                    WHERE table_name = 'suppliers' 
-                    AND column_name = 'card_details'
-                ) THEN
-                    ALTER TABLE suppliers ADD COLUMN card_details VARCHAR(255);
-                END IF;
-            END $$;
-        """)
-        
-        conn.commit()
-        print("Структура таблицы успешно обновлена.")
-    except Exception as e:
-        print(f"Ошибка при обновлении структуры таблицы: {e}")
-    finally:
-        if 'cursor' in locals():
-            cursor.close()
-        if 'conn' in locals():
-            conn.close()
 
 # Регистрация поставщика
 def register_supplier():
@@ -148,7 +118,7 @@ def register_supplier():
     for i, country in enumerate(COUNTRIES, 1):
         print(f"{i}. {country}")
     country_idx = int(input("Введите номер страны: ")) - 1
-    country = COUNTRIES[country_idx]
+    country = COUNTRIES[country_idx].split(" ")[1]  # Убираем эмодзи для записи в БД
 
     print("Как часто вы хотите получать выплаты?")
     print("1. Раз в две недели")
@@ -213,7 +183,7 @@ def remove_supplier(supplier_id):
 # Вывод инструкции для отправки отчета
 def show_report_instructions(supplier_name, supplier_id, ip, crypto_wallet, exchange, payment_method, card_details, traffic_gb):
     payment = traffic_gb * 1.15  # Сумма в рублях
-    print("\\n=== Инструкция для получения оплаты ===")
+    print("\n=== Инструкция для получения оплаты ===")
     print("Отправьте письмо на supermanformedia@gmail.com со следующими данными:")
     print(f"Имя поставщика: {supplier_name}")
     print(f"IP-адрес сервера: {ip}")
@@ -233,7 +203,7 @@ def show_report_instructions(supplier_name, supplier_id, ip, crypto_wallet, exch
 # Главное меню
 def main_menu(supplier_name, supplier_id, ip, crypto_wallet, exchange, payment_method, card_details):
     while True:
-        print("\\n=== Меню поставщика услуг ===")
+        print("\n=== Меню поставщика услуг ===")
         print("1. Узнать объем трафика")
         print("2. Узнать сумму к оплате")
         print("3. Подготовить отчет для оплаты")
@@ -260,9 +230,6 @@ def main_menu(supplier_name, supplier_id, ip, crypto_wallet, exchange, payment_m
             print("Неверный выбор, попробуйте снова.")
 
 if __name__ == "__main__":
-    # Обновляем структуру таблицы перед началом работы
-    update_table_structure()
-    
     if not os.path.exists("supplier_registered"):
         supplier_name, ip, supplier_id, payout_frequency, crypto_wallet, exchange, payment_method, card_details = register_supplier()
         with open("supplier_registered", "w") as f:
