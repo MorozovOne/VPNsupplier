@@ -41,8 +41,6 @@ access_log /var/log/squid/access.log
 maximum_object_size 10 MB          # Ограничение размера объекта
 request_body_max_size 15 MB        # Ограничение размера тела запроса
 reply_body_max_size 20 MB          # Ограничение размера ответа
-cache_mem 256 MB                   # Ограничение памяти кэша
-maximum_single_addr 100            # Ограничение запросов с одного IP
 
 # Черный список Spamhaus
 acl spamhaus_drop src "/etc/squid/blacklists/spamhaus_drop.txt"
