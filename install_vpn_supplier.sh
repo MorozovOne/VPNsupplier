@@ -76,13 +76,13 @@ DB_PARAMS = {
 
 # Список стран с эмодзи-флагами перед названием
 COUNTRIES = [
-    "🇺🇸USA", "🇷🇺Russia", "🇨🇳China", "🇮🇳India", "🇧🇷Brazil",
-    "🇩🇪Germany", "🇯🇵Japan", "🇬🇧United Kingdom", "🇫🇷France", "🇮🇹Italy",
-    "🇨🇦Canada", "🇰🇷South Korea", "🇦🇺Australia", "🇪🇸Spain", "🇲🇽Mexico",
-    "🇮🇩Indonesia", "🇹🇷Turkey", "🇳🇱Netherlands", "🇸🇦Saudi Arabia", "🇨🇭Switzerland",
-    "🇩🇰Denmark", "🇳🇴Norway", "🇸🇪Sweden", "🇫🇮Finland", "🇮🇸Iceland",
-    "🇭🇰Hong Kong", "🇸🇬Singapore", "🇦🇪United Arab Emirates", "🇿🇦South Africa", "🇹🇭Thailand",
-    "🇦🇷Argentina", "🇵🇱Poland", "🇺🇦Ukraine"
+    "🇺🇸 USA", "🇷🇺 Russia", "🇨🇳 China", "🇮🇳 India", "🇧🇷 Brazil",
+    "🇩🇪 Germany", "🇯🇵 Japan", "🇬🇧 United Kingdom", "🇫🇷 France", "🇮🇹 Italy",
+    "🇨🇦 Canada", "🇰🇷 South Korea", "🇦🇺 Australia", "🇪🇸 Spain", "🇲🇽 Mexico",
+    "🇮🇩 Indonesia", "🇹🇷 Turkey", "🇳🇱 Netherlands", "🇸🇦 Saudi Arabia", "🇨🇭 Switzerland",
+    "🇩🇰 Denmark", "🇳🇴 Norway", "🇸🇪 Sweden", "🇫🇮 Finland", "🇮🇸 Iceland",
+    "🇭🇰 Hong Kong", "🇸🇬 Singapore", "🇦🇪 United Arab Emirates", "🇿🇦 South Africa", "🇹🇭 Thailand",
+    "🇦🇷 Argentina", "🇵🇱 Poland", "🇺🇦 Ukraine"
 ]
 
 # Регистрация поставщика
